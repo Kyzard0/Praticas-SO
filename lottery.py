@@ -3,20 +3,21 @@ from time import sleep
 from threading import Thread, Lock
 
 """
-    Em python não existem monitores como o synchronized do Java,
-    porém existe uma sincronização primitiva utilizando o objeto
-    Lock de threading do python, que oferece uma simples funcionalidade
-    de exclusão mútua que funciona como um monitor.
+    O método de escalonamento por loteria busca eliminar a chance de starvation
+    pois, todos os processos irão receber ao menos um ticket e dessa forma tem
+    sempre uma chance de receber a vez no processador, não funciona baseado em 
+    prioridades e dessa forma todos os processos podem ser chamados aleatoriamente,
+    embora alguns processos possam ter mais tickets que outros todos têm uma boa
+    chance de ocupar a CPU.
 
-    O objeto Lock possui dois valores possíveis que só podem ser alterados
-    pelos métodos básicos acquire() e release(), quando um processo toma conta
-    desse lock ele é alterado para locked e nenhum outro processo pode acessar a
-    região crítica até que esse processo dê release no lock, utilizando o with(lock)
-    isso é feito de forma automática.
+    Nesse algoritmo foi utilizado uma variável time para simular o tempo de CPU de
+    cada processo, pois threading em python não suporta controle por tempo ou prioridade
+    das threads, dessa forma foi feito um simulação mais próxima possível de escalonamento
+    por loteria.
 """
 
-rc = list(range(5))
-i = 50
+rc = list(range(20))
+i = 100
 lottery = list(range(300))
 winner = choice(lottery)
 lottery_tickets = list(range(300))
@@ -31,7 +32,7 @@ class ProcessBase:
         global lottery
         global num_process
 
-        self.tickets = sample(lottery_tickets, len(lottery)/num_process)
+        self.tickets = sample(lottery_tickets, int(len(lottery)/num_process))
         for number in self.tickets:
             lottery_tickets.remove(number)
 
@@ -47,7 +48,7 @@ class ProcessBase:
     def is_full(self):
         global rc
 
-        if len(rc) >= 10:
+        if len(rc) >= 40:
             print('O processo {} parou porque a regiao critica chegou '
                   'a 10 elementos.'.format(self.id))
             return True
@@ -74,35 +75,40 @@ class ProcessInput(Thread, ProcessBase):
         global lottery
         global winner
 
-        if self.is_full() or i == 0:
-            if i == 0:
-                print('O processo {} foi encerrado porque o número de interações '
-                      'foi esgotado'.format(self.id))
-            self.stop()
-        else:
-            print('O processo {} está inicializando...'.format(self.id))
-            sleep(2)
-            print('O processo {} vai colocar um elemento na '
-                  'região crítica'.format(self.id))
-            rc.append(self.id)
-            i -= 1
-            self.time -= 1
-            print('O processo {} aumentou o tamanho da região crítica para '
-                  '{}'.format(self.id, len(rc)))
-
-        if time == 0 or self.running is False:
+        
+        if self.time == 0:
             winner = choice(lottery)
-            if self.time == 0:
-                self.time = 5
+            self.time = 5
+            print('O processo {} irá entrar em espera pois o tempo dele acabou'.format(self.id))
+        else:
+            if self.is_full() or i == 0:
+                if i == 0:
+                    print('O processo {} foi encerrado porque o número de interações '
+                        'foi esgotado'.format(self.id))
+                winner = choice(lottery)
+                self.stop()
+            else:
+                print('O processo {} está inicializando...'.format(self.id))
+                print('Tempo de CPU: {}'.format(self.time))
+                print('O processo {} vai colocar um elemento na '
+                    'região crítica'.format(self.id))
+                rc.append(self.id)
+                i -= 1
+                self.time -= 1
+                print('O processo {} aumentou o tamanho da região crítica para '
+                    '{}'.format(self.id, len(rc)))
 
     def run(self):
+        global winner
         while self.running:
             with lock:
-                if len(self.tickets) != 0:
+                if len(self.tickets) == 0:
                     self.inicia_processo()
                 if winner in self.tickets:
+                    if self.time == 5:
+                        print('\nO vencedor é: {}\n'.format(winner))
                     self.input_element()
-                sleep(5)
+            sleep(2)
 
 
 class ProcessOutput(Thread, ProcessBase):
@@ -111,29 +117,50 @@ class ProcessOutput(Thread, ProcessBase):
         Thread.__init__(self)
         self.id = id
         self.running = True
+        self.tickets = []
+        self.time = 5
 
     def output_element(self):
         global rc
         global i
-        if self.is_empty() or i == 0:
-            if i == 0:
-                print('O processo {} foi encerrado porque o número de interações '
-                      'foi esgotado'.format(self.id))
-            self.stop()
+        global lottery_tickets
+        global lottery
+        global winner
+
+        if self.time == 0:
+            winner = choice(lottery)
+            self.time = 5
+            print('O processo {} irá entrar em espera pois o tempo dele acabou'.format(self.id))
+
         else:
-            print('O processo {} está inicializando...'.format(self.id))
-            sleep(2)
-            print('O processo {} vai remover um valor da '
-                  'regiao critica'.format(self.id))
-            rc.pop()
-            i -= 1
-            print('O processo {} reduziu o tamanho da região crítica para '
-                  '{}'.format(self.id, len(rc)))
+            if self.is_empty() or i == 0:
+                if i == 0:
+                    print('O processo {} foi encerrado porque o número de interações '
+                        'foi esgotado'.format(self.id))
+                winner = choice(lottery)
+                self.stop()
+            else:
+                print('O processo {} está inicializando...'.format(self.id))
+                print('Tempo de CPU: {}'.format(self.time))
+                print('O processo {} vai remover um valor da '
+                    'regiao critica'.format(self.id))
+                rc.pop()
+                i -= 1
+                self.time -= 1
+                print('O processo {} reduziu o tamanho da região crítica para '
+                    '{}'.format(self.id, len(rc)))
 
     def run(self):
+        global winner
         while self.running:
-            self.output_element()
-            sleep(5)
+            with lock:
+                if len(self.tickets) == 0:
+                    self.inicia_processo()
+                if winner in self.tickets:
+                    if self.time == 5:
+                        print('\nO vencedor é: {}\n'.format(winner))
+                    self.output_element()
+            sleep(2)
 
 
 if __name__ == '__main__':
@@ -142,12 +169,22 @@ if __name__ == '__main__':
     t2 = ProcessInput(2)
     t3 = ProcessOutput(3)
     t4 = ProcessOutput(4)
+    t5 = ProcessInput(5)
+    t6 = ProcessInput(6)
+    t7 = ProcessOutput(7)
+    t8 = ProcessInput(8)
+    t9 = ProcessOutput(9)
 
     t0.start()
     t1.start()
     t2.start()
     t3.start()
     t4.start()
+    t5.start()
+    t6.start()
+    t7.start()
+    t8.start()
+    t9.start()
 
     t0.join()
     print("O processo 0 parou!")
@@ -159,3 +196,13 @@ if __name__ == '__main__':
     print("O processo 3 parou!")
     t4.join()
     print("O processo 4 parou!")
+    t5.join()
+    print("O processo 5 parou!")
+    t6.join()
+    print("O processo 6 parou!")
+    t7.join()
+    print("O processo 7 parou!")
+    t8.join()
+    print("O processo 8 parou!")
+    t9.join()
+    print("O processo 9 parou!")
