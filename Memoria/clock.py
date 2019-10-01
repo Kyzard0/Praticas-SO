@@ -2,6 +2,8 @@ import threading
 import random
 import time
 
+last_reference = 0
+
 
 class Manager:
 
@@ -21,19 +23,19 @@ class Manager:
         if len(process.data) <= self.virtual_free():
             self.processes.append(process)
             for item in process.data:
-                print(f"Allocating {item} from process {process.tag} in virtual memory...")
+                print(f"Alocando {item} do processo {process.tag} na memória virtual...")
                 self.virtual_memory.remove(None)
                 self.virtual_memory.append(item)
                 self.ref.append(1)
         else:
-            print("The virtual memory is full!")
+            print("A memória virtal está cheia!")
 
     def get(self, tag):
         print("\n\n\n")
         if tag in self.main_memory:
             print(f"HIT! Page {tag}")
             index = self.main_memory.index(tag)
-            self.ref[index] = 1
+            self.ref[index] = 0
             self.show()
             return tag
         elif tag in self.virtual_memory:
@@ -42,9 +44,10 @@ class Manager:
             self.show()
             return tag
         else:
-            print(f"Data {tag} do not exist!")
+            print(f"O dado {tag} não existe!")
 
     def miss(self, tag):
+        global last_reference
         index = self.virtual_memory.index(tag)
         self.ref[index] = 1
 
@@ -55,19 +58,14 @@ class Manager:
             self.ref.pop(aux)
             self.ref.append(1)
         else:
-            not_ref = -1
 
-            for i in range(len(self.main_memory)):
-                if self.ref[i] == 0:
-                    not_ref = i
-                    break
+            while self.ref[last_reference] == 1:
+                self.ref[last_reference] == 0
+                last_reference = (last_reference + 1) % len(self.ref)
 
-            if not_ref >= 0:
-                self.main_memory.pop(not_ref)
-                self.ref.pop(not_ref)
-            else:
-                self.main_memory.pop(0)
-                self.ref.pop(0)
+            if self.ref[last_reference] == 0:
+                self.main_memory.pop(last_reference)
+                self.ref.pop(last_reference)
 
             self.main_memory.append(tag)
             self.ref.append(1)
@@ -107,7 +105,7 @@ class Manager:
 
         info2 = ""
         for item in self.virtual_memory:
-            if item is None:
+            if item is not None:
                 info2 = info2 + "| " + item + " |"
             else:
                 info2 = info2 + "|    |"
