@@ -2,7 +2,16 @@ import threading
 import random
 import time
 
-last_reference = 0
+"""
+Tentei implementar outro algoritmo pois o clock era muito parecido,
+porém não consegui implementar a tempo, então optei por trocar para
+o algoritmo FIFO para que de certa forma seja diferente mesmo sendo
+bem simples e o second chance sendo uma melhoramento do FIFO.
+
+Escolhi por deixar a variável de bit R para ilustrar que no FIFO,
+mesmo que o processo seja bastante usado ele irá ser retirado da
+lista quando ocorrer um miss e ele for o mais antigo na lista.
+"""
 
 
 class Manager:
@@ -26,7 +35,6 @@ class Manager:
                 print(f"Alocando {item} do processo {process.tag} na memória virtual...")
                 self.virtual_memory.remove(None)
                 self.virtual_memory.append(item)
-                self.ref.append(1)
         else:
             print("A memória virtal está cheia!")
 
@@ -35,7 +43,7 @@ class Manager:
         if tag in self.main_memory:
             print(f"HIT! Page {tag}")
             index = self.main_memory.index(tag)
-            self.ref[index] = 0
+            self.ref[index] = 1
             self.show()
             return tag
         elif tag in self.virtual_memory:
@@ -47,26 +55,17 @@ class Manager:
             print(f"O dado {tag} não existe!")
 
     def miss(self, tag):
-        global last_reference
-        index = self.virtual_memory.index(tag)
-        self.ref[index] = 1
 
         if None in self.main_memory:
             aux = self.main_memory.index(None)
             self.main_memory.pop(aux)
-            self.main_memory.append(tag)
             self.ref.pop(aux)
+            self.main_memory.append(tag)
             self.ref.append(1)
         else:
-
-            while self.ref[last_reference] == 1:
-                self.ref[last_reference] == 0
-                last_reference = (last_reference + 1) % len(self.ref)
-
-            if self.ref[last_reference] == 0:
-                self.main_memory.pop(last_reference)
-                self.ref.pop(last_reference)
-
+            print(f"PROCESSO {self.main_memory[0]} REMOVIDO DA MEMÓRIA")
+            self.main_memory.pop(0)
+            self.ref.pop(0)
             self.main_memory.append(tag)
             self.ref.append(1)
 
@@ -78,10 +77,11 @@ class Manager:
 
     def update_ref(self):
         while True:
-            time.sleep(3)
+            time.sleep(5)
             print("\n\n\n======================================\n============ REF UPDATED! ============\n======================================\n")
             for i in range(len(self.ref)):
-                self.ref[i] = 0
+                if self.ref[i] != 0:
+                    self.ref[i] = 0
 
     def processing(self, process):
         while True:
@@ -92,14 +92,15 @@ class Manager:
             time.sleep(2)
 
     def show(self):
-        border1 = "=" * int(len(self.main_memory) * 7.2)
+        border1 = "=" * int(len(self.main_memory) * 13.2)
         border2 = "=" * int(len(self.virtual_memory) * 5.1)
         info1 = ""
+
         for i in range(len(self.main_memory)):
             if self.main_memory[i] is not None:
-                info1 = info1 + "| " + self.main_memory[i] + " " + str(self.ref[i]) + " |"
+                info1 = info1 + "|  " + self.main_memory[i] + " R = " + str(self.ref[i]) + "  |"
             else:
-                info1 = info1 + "|      |"
+                info1 = info1 + "|            |"
 
         info1 = info1.replace("||", "|")
 
